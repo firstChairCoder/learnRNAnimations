@@ -1,5 +1,4 @@
-import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+import React, { createRef, useEffect, useRef, useState } from "react";
 import {
   Animated,
   StyleSheet,
@@ -11,62 +10,22 @@ import {
   PanResponder,
   Dimensions,
   TouchableOpacity,
+  Button,
 } from "react-native";
-import clamp from "clamp";
+import Svg, { Path } from "react-native-svg";
+import { interpolate } from "flubber";
 
-import Cat1 from "./assets/images/cat1.jpeg";
-import Cat2 from "./assets/images/cat2.jpeg";
-import Cat3 from "./assets/images/cat3.jpeg";
-import Cat4 from "./assets/images/cat4.jpeg";
-
-const SWIPE_THRESHOLD = 120;
-const { height, width } = Dimensions.get("window");
-
+const { height } = Dimensions.get("window");
 export default function App() {
   const animation = new Animated.ValueXY();
-  const opacity = new Animated.Value(1);
-  const next = new Animated.Value(0.9);
-  const prevItems = usePrevious(items)
-  const [items, setItems] = useState([
-    {
-      image: Cat1,
-      id: 1,
-      text: "Sweet Cat",
-    },
-    {
-      image: Cat2,
-      id: 2,
-      text: "Sweeter Cat",
-    },
-    {
-      image: Cat3,
-      id: 3,
-      text: "Sweetest Cat",
-    },
-    {
-      image: Cat4,
-      id: 4,
-      text: "Aww",
-    },
-  ]);
-
-  function usePrevious(value) {
-    const ref = useRef();
-  
-    useEffect(() => {
-      ref.current = value;
-    }, [value]); 
-  
-    return ref.current;
-  }
-
-  
-  console.log(items)
 
   let _panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: () => {
+        animation.extractOffset(); // preserves drag location by moving deltas to offset and comparing from that previous point
+      },
       onPanResponderMove: Animated.event(
         [
           null,
@@ -77,107 +36,69 @@ export default function App() {
         ],
         { useNativeDriver: false }
       ),
-      onPanResponderRelease: (e, { dx, vx, vy }) => {
-        let velocity;
-
-        if (vx >= 0) {
-          velocity = clamp(vx, 3, 5);
-        } else if (vx < 0) {
-          velocity = clamp(Math.abs(vx), 3, 5) * -1;
-        }
-
-        if (Math.abs(dx) > SWIPE_THRESHOLD) {
-          Animated.decay(animation, {
-            velocity: { x: velocity, y: vy },
-            deceleration: 0.98,
-            useNativeDriver: true,
-          }).start(transitionNext)
-        } else {
-          Animated.spring(animation, {
-            toValue: { x: 0, y: 0 },
-            friction: 4,
-            useNativeDriver: false,
-          }).start();
-        }
-      },
     })
   ).current;
 
-  const transitionNext = () => {
-    setItems(() => {
-      return prevItems.slice(1)
-    })
-  }
-
-  const rotate = animation.x.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: ["-30deg", "0deg", "-30deg"],
-    extrapolate: "clamp",
-  });
-
-  const opacityInterpolate = animation.x.interpolate({
-    inputRange: [-200, 0, 200],
-    outputRange: [0.5, 1, 0.5],
-    extrapolate: "clamp",
-  });
-
-  const animatedCardStyles = {
-    opacity,
-    transform: [
-      {
-        rotate,
-      },
-      ...animation.getTranslateTransform(),
-    ],
+  const handlePress = () => {
+    Animated.sequence([
+      Animated.timing(animation, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: false,
+      }),
+      Animated.delay(1500),
+      Animated.timing(animation, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: false,
+      }),
+    ]).start();
   };
 
-  const animatedImageStyles = {
-    opacity: opacityInterpolate,
+  const verdad = height / 2
+  console.log(height)
+  // .99 cliff is you define a start value and the second value will be defined right before that second value takes effect. This makes animations happen instantly.
+  const inputRange = [0, verdad - 50.01, verdad - 50, height];
+
+  const bgInterpolate = animation.y.interpolate({
+    inputRange,
+    outputRange: [
+      "rgb(99,71,255)",
+      "rgb(99,71,255)",
+      "rgb(255,0,0)",
+      "rgb(255,0,0)",
+    ],
+  });
+
+  const flipInterpolate = animation.y.interpolate({
+    inputRange,
+    outputRange: [1,1,-1,-1]
+  })
+
+  const animatedStyles = {
+    backgroundColor: bgInterpolate,
+    transform: [
+      ...animation.getTranslateTransform(),
+    {
+      scale: flipInterpolate
+    }
+    ],
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.top}>
-        {items
-          .slice(0, 2)
-          .reverse()
-          .map(({ image, id, text }, index, items) => {
-            const isLastItem = index === items.length - 1;
-            const isSecondToLast = index === items.length - 2;
-
-            const panHandlers = isLastItem ? _panResponder.panHandlers : {};
-            const cardStyle = isLastItem ? animatedCardStyles : undefined;
-            const imageStyle = isLastItem ? animatedImageStyles : undefined;
-
-            const nextStyle = isSecondToLast
-              ? {
-                  transform: [
-                    {
-                      scale: next,
-                    },
-                  ],
-                }
-              : undefined;
-
-            return (
-              <Animated.View
-                key={id}
-                style={[styles.card, cardStyle, nextStyle]}
-                {...panHandlers}
-              >
-                <Animated.Image
-                  style={[styles.image, imageStyle]}
-                  source={image}
-                  resizeMode="cover"
-                />
-                <View style={styles.lowerText}>
-                  <Text>{text}</Text>
-                </View>
-              </Animated.View>
-            );
-          })}
+      <View style={[styles.top, styles.center, styles.container]}>
+        <Text>Good</Text>
       </View>
-      <View style={styles.buttonBar}></View>
+      <View style={[styles.center, styles.container]}>
+        <Text>Bad</Text>
+      </View>
+      <Animated.View
+        {..._panResponder.panHandlers}
+        style={[styles.box, styles.center, animatedStyles]}
+      >
+        <Text>Box</Text>
+      </Animated.View>
     </View>
   );
 }
@@ -186,39 +107,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  top: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  buttonBar: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  card: {
-    width: 300,
-    height: 300,
+  box: {
     position: "absolute",
-    borderRadius: 3,
-    shadowColor: "black",
-    shadowOpacity: 0.1,
-    shadowOffset: { x: 0, y: 0 },
-    shadowRadius: 5,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#FFF",
+    width: 50,
+    height: 50,
+    top: 0,
+    left: 0,
   },
-  image: {
-    width: null,
-    height: null,
-    flex: 3,
-    borderRadius: 2,
+  top: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#AAA",
   },
-  lowerText: {
-    flex: 1,
-    backgroundColor: "#FFF",
-    padding: 5,
+  center: {
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
